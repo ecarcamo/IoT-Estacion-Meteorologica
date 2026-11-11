@@ -1,10 +1,13 @@
 import argparse
 import json
+from datetime import datetime
 
+import matplotlib.pyplot as plt
 from kafka import KafkaConsumer
 
 from weather_station import codec
 from weather_station.config import load_settings
+from weather_station.plot import WeatherPlot
 from weather_station.sensors import WIND_DIRECTIONS
 
 
@@ -28,6 +31,7 @@ def parse_message(value: bytes) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Consumidor de la estación meteorológica")
     parser.add_argument("--replay", action="store_true", help="relee el historial sin guardar offsets del grupo")
+    parser.add_argument("--save", help="guarda la gráfica en PNG al cerrar")
     args = parser.parse_args()
     settings = load_settings()
     consumer = KafkaConsumer(
@@ -39,8 +43,11 @@ def main() -> None:
     )
     print(f"Leyendo el topic {settings.topic}. Ctrl+C para detener.")
     try:
-        while True:
-            for records in consumer.poll(timeout_ms=500).values():
+        chart = WeatherPlot(settings.topic)
+        plt.show(block=False)
+        while plt.fignum_exists(chart.figure.number):
+            changed = False
+            for records in consumer.poll(timeout_ms=100, max_records=500).values():
                 for record in records:
                     try:
                         data = parse_message(record.value)
@@ -48,10 +55,19 @@ def main() -> None:
                         print(f"Mensaje omitido: partición {record.partition}, offset {record.offset}: {error}")
                         continue
                     print(f"Partición {record.partition}, offset {record.offset}: {data}", flush=True)
+                    timestamp = datetime.fromtimestamp(record.timestamp / 1000) if record.timestamp >= 0 else datetime.now()
+                    chart.add(data, timestamp)
+                    changed = True
+            if changed:
+                chart.refresh()
+            plt.pause(0.1)
     except KeyboardInterrupt:
         print("\nDetenido por el usuario.")
     finally:
         consumer.close()
+    if args.save:
+        chart.figure.savefig(args.save, dpi=200)
+    plt.close(chart.figure)
 
 
 if __name__ == "__main__":
