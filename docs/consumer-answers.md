@@ -71,7 +71,8 @@ una máscara de 14 bits y una división entre 100. La humedad usa los siguientes
 
 ## Estado de las pruebas
 
-La prueba local alternó 24 mensajes JSON y compactos y verificó las líneas y los
-conteos. No demuestra autenticación ni entrega desde el broker. La captura real
-y la prueba de cierre con la ventana conectada quedan pendientes de configurar
-la contraseña en `.env`. No incluimos credenciales en las respuestas ni en Git.
+Prueba contra el broker real el 10 de noviembre: 8 mensajes JSON y 8 de tres
+bytes (offsets 4 a 19), todos recibidos y decodificados con los mismos valores
+enviados. También se ejecutaron productor, consumidor y gráfica en vivo a la vez;
+las capturas están en `docs/screenshots/`. No incluimos credenciales en las
+respuestas ni en Git.

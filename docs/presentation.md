@@ -2,7 +2,7 @@
 CC3067 Redes · Universidad del Valle de Guatemala
 Esteban Cárcamo y Felipe Aguilar
 Simulación de sensores, Kafka y visualización en Python.
-Versión para revisión: falta incorporar evidencia del broker real desde el consumidor.
+Broker Edge 161.35.11.141:9092 · Topic 23016 · Repositorio: github.com/ecarcamo/IoT-Estacion-Meteorologica
 
 # 3.1 · Simulación de sensores
 Generamos temperatura entre 0 y 110 °C, con dos decimales, y humedad entera entre 0 y 100 %.
@@ -16,18 +16,26 @@ Sensor simulado → productor Python → broker Kafka → topic 23016 → consum
 El productor espera entre 15 y 30 segundos y continúa hasta Ctrl+C. La key sensor1 mantiene los mensajes en una partición mientras no cambie su asignación.
 Usamos acks="all" y esperamos la confirmación de cada envío; imprimimos partición y offset. La durabilidad también depende de las réplicas y de la configuración del broker.
 SASL/PLAIN autentica con variables de .env. SASL_PLAINTEXT no cifra el tráfico: no debe confundirse autenticación con confidencialidad.
-Ejecución: python producer.py. Para tres bytes: python producer.py --compact. Falta adjuntar una captura real de esta ejecución a esta versión.
+Ejecución: python producer.py. Para tres bytes: python producer.py --compact.
+
+# 3.2 · Evidencia: productor publicando en el broker
+Cinco lecturas en JSON y cinco en tres bytes, a intervalos de 15–30 s. Cada envío muestra la confirmación del broker con su partición y offset.
+![Terminal del productor](screenshots/live-producer-terminal.png)
 
 # 3.3 · Consumidor y gráfica
 El consumidor distingue compacto por longitud de tres bytes; en los demás casos interpreta JSON. Verifica rangos y omite lecturas inválidas con un aviso.
 La gráfica muestra temperatura y humedad contra la hora del mensaje, más conteos de viento. poll y plt.pause permiten atender la ventana entre lecturas.
-python consumer.py --replay --save docs/screenshots/kafka.png
+python consumer.py · python consumer.py --replay --save docs/screenshots/kafka-json.png
 El grupo normal continúa desde sus offsets. --replay lee el historial retenido sin guardar offsets del grupo. earliest no reinicia por sí solo un grupo existente.
 La gráfica es de sesión: los datos quedan en memoria. No implementamos persistencia local ni entrega exactamente una vez.
 
-# 3.3 · Evidencia local de visualización
-24 lecturas con JSON y compacto alternados. Horas artificiales; no se conectó al broker.
-![Gráfica local](screenshots/local-mixed.png)
+# 3.3 · Evidencia: productor, consumidor y gráfica en vivo
+Ejecución real contra el broker: a la izquierda el consumidor imprime cada mensaje con su offset; la gráfica se actualiza con cada lectura nueva.
+![Escritorio con productor, consumidor y gráfica](screenshots/live-desktop.png)
+
+# 3.3 · Evidencia: gráfica con datos consumidos de Kafka
+Lecturas JSON recibidas del topic 23016. El tramo recto inicial une las lecturas de prueba de las 20:12 con la ejecución de las 20:36.
+![Gráfica JSON](screenshots/kafka-json.png)
 
 # 3.3 · ¿Por qué Pub/Sub con Kafka?
 Ventajas: productor y consumidores independientes, historial retenido, relectura mediante offsets y procesamiento paralelo por particiones.
@@ -42,6 +50,10 @@ Codificación: (5632 << 10) | (51 << 3) | 3 = 0x58019B. Decodificación: corrimi
 58 01 9B recupera 56.32 °C, 51 % y SO. Las pruebas comprueban ida y vuelta con 5000 lecturas y rechazan tamaños incorrectos.
 El ejemplo JSON ocupa 63 bytes frente a 3 del compacto: reducción del valor de aproximadamente 95.2 %. No incluye key, cabeceras ni tráfico de Kafka/TCP.
 
+# 3.4 · Evidencia: envío, consumo y gráfica con 3 bytes
+Ejemplo real: el productor envió 48 8E D7 (offset 12) y el consumidor lo decodificó como 46.43 °C, 90 % y NE. La gráfica mezcla JSON y compacto en el mismo topic.
+![Gráfica con mensajes de 3 bytes](screenshots/kafka-compact.png)
+
 # 3.4 · Decisiones por el límite de tamaño
 El formato compacto no se describe solo: ambos extremos deben compartir esquema y orden de bytes. No reservamos un campo de versión, timestamp ni checksum propio.
 Si la humedad tiene un decimal, hay 1001 valores: necesita 10 bits. 14 + 10 + 3 = 27 bits, por lo que ya no cabe.
@@ -54,9 +66,8 @@ max_request_size limita solicitudes, no solo payload. Reducir acks puede bajar g
 Avro/Protobuf y Schema Registry facilitan evolución, pero su envoltura no necesariamente cabe en tres bytes.
 Un gateway MQTT puede filtrar o resumir antes de publicar. Connect integra fuentes; Streams procesa eventos del cluster. Procesar después del broker no reduce el tráfico que el sensor ya envió.
 
-# Pruebas y pasos pendientes
+# Pruebas y resultados
 20 pruebas automatizadas aprobadas: sensores, codificación y decodificación, formatos mixtos y rechazo de mensajes inválidos.
-Visualización local: 24 puntos por línea, barras que suman 24 y revisión de los estados vacío y con datos. La captura no demuestra conectividad ni autenticación Kafka.
-Pendiente: configurar la contraseña en .env, ejecutar ambos modos a intervalos de 15–30 s y capturar gráfica, consola y offsets reales. Probar cierre de ventana y Ctrl+C conectados.
-Después: sustituir la imagen local, regenerar el PDF y subir código y evidencia a Canvas. No se realizó una entrega ni un push desde esta ejecución.
+Prueba contra el broker real (10 de noviembre): 8 mensajes JSON y 8 de tres bytes, offsets 4 a 19, todos recibidos y decodificados con los mismos valores enviados.
+Ejecución en vivo con productor, consumidor y gráfica abiertos a la vez, intervalos de 15–30 s.
 Base de las respuestas: docs/producer-answers.md y docs/consumer-answers.md. Referencias: kafka.apache.org/documentation/ y kafka-python.readthedocs.io.

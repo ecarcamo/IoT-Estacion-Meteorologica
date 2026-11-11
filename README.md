@@ -46,5 +46,5 @@ Las respuestas están en `docs/producer-answers.md` y `docs/consumer-answers.md`
 `docs/presentation.md`, ejecuta `python docs/build_presentation.py` con las
 dependencias de desarrollo instaladas.
 
-La imagen incluida es una prueba local, marcada como tal. La captura real de
-Kafka y la entrega a Canvas siguen pendientes; ver `docs/screenshots/README.md`.
+Las capturas reales contra el broker están en `docs/screenshots/`; su README
+explica qué muestra cada una.

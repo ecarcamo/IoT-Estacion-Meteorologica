@@ -3,6 +3,7 @@ from pathlib import Path
 
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.utils import ImageReader
 from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer
 
 
@@ -17,8 +18,10 @@ def main() -> None:
                 story.append(PageBreak())
             story.append(Paragraph(escape(line[2:]), title))
         elif line.startswith("!["):
-            path = line.split("(", 1)[1].rstrip(")")
-            story.append(Image(str(directory / path), width=480, height=360))
+            path = str(directory / line.split("(", 1)[1].rstrip(")"))
+            width, height = ImageReader(path).getSize()
+            scale = min(860 / width, 380 / height)
+            story.append(Image(path, width=width * scale, height=height * scale))
         elif line.strip():
             story.append(Paragraph(escape(line), body))
         else:
