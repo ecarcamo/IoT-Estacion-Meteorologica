@@ -38,3 +38,13 @@ del mensaje y la key `sensor1` mantiene los datos del productor en una partició
 Para la evidencia final, deja el productor con sus intervalos normales de 15–30 s.
 Primero ejecuta `python producer.py` y luego prueba `python producer.py --compact`.
 No publiques `.env`: SASL_PLAINTEXT autentica, pero no cifra la conexión.
+
+## Presentación y evidencia
+
+Las respuestas están en `docs/producer-answers.md` y `docs/consumer-answers.md`.
+`docs/presentation.pdf` contiene las láminas; para regenerarlas después de editar
+`docs/presentation.md`, ejecuta `python docs/build_presentation.py` con las
+dependencias de desarrollo instaladas.
+
+La imagen incluida es una prueba local, marcada como tal. La captura real de
+Kafka y la entrega a Canvas siguen pendientes; ver `docs/screenshots/README.md`.
