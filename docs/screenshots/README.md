@@ -4,6 +4,7 @@ Capturas reales contra el broker `161.35.11.141:9092`, topic `23016`, tomadas el
 
 | Archivo | Qué muestra |
 |---|---|
+| `sensors-and-tests.png` | Lecturas simuladas en JSON con su codificación de 3 bytes, y las 20 pruebas aprobadas |
 | `live-desktop.png` | Escritorio con la terminal del productor, la del consumidor y la gráfica en vivo, todo corriendo a la vez |
 | `live-producer-terminal.png` | Terminal del productor: 5 envíos JSON y 5 de 3 bytes, cada uno con partición y offset |
 | `live-consumer-terminal.png` | Terminal del consumidor: cada mensaje recibido y decodificado con su offset |
