@@ -24,3 +24,14 @@ def encode(data: dict) -> bytes:
         raise ValueError(f"Humedad fuera de rango: {humidity}")
     packed = (temperature << TEMPERATURE_SHIFT) | (humidity << HUMIDITY_SHIFT) | wind
     return packed.to_bytes(PAYLOAD_SIZE, "big")
+
+
+def decode(payload: bytes) -> dict:
+    if len(payload) != PAYLOAD_SIZE:
+        raise ValueError("El mensaje compacto debe tener exactamente 3 bytes")
+    packed = int.from_bytes(payload, "big")
+    return {
+        "temperatura": ((packed >> TEMPERATURE_SHIFT) & TEMPERATURE_MASK) / TEMPERATURE_SCALE,
+        "humedad": (packed >> HUMIDITY_SHIFT) & HUMIDITY_MASK,
+        "direccion_viento": WIND_DIRECTIONS[packed & WIND_MASK],
+    }

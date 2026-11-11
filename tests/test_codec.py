@@ -1,11 +1,14 @@
 import pytest
 
-from weather_station.codec import PAYLOAD_SIZE, encode
+from weather_station.codec import PAYLOAD_SIZE, decode, encode
 from weather_station.sensors import WeatherSensor
 
 
 def test_example_from_assignment():
     assert encode({"temperatura": 56.32, "humedad": 51, "direccion_viento": "SO"}) == bytes([0x58, 0x01, 0x9B])
+    assert decode(bytes([0x58, 0x01, 0x9B])) == {
+        "temperatura": 56.32, "humedad": 51, "direccion_viento": "SO"
+    }
 
 
 def test_extremes_fit_in_three_bytes():
@@ -18,7 +21,15 @@ def test_extremes_fit_in_three_bytes():
 def test_every_simulated_reading_is_three_bytes():
     sensor = WeatherSensor(seed=4)
     for _ in range(5000):
-        assert len(encode(sensor.read().to_dict())) == PAYLOAD_SIZE
+        data = sensor.read().to_dict()
+        assert len(encode(data)) == PAYLOAD_SIZE
+        assert decode(encode(data)) == data
+
+
+@pytest.mark.parametrize("payload", [b"", b"\x00\x00", b"\x00" * 4])
+def test_decode_rejects_wrong_size(payload):
+    with pytest.raises(ValueError):
+        decode(payload)
 
 
 @pytest.mark.parametrize(
