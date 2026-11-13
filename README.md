@@ -42,9 +42,12 @@ No publiques `.env`: SASL_PLAINTEXT autentica, pero no cifra la conexión.
 ## Presentación y evidencia
 
 Las respuestas están en `docs/producer-answers.md` y `docs/consumer-answers.md`.
-`docs/presentation.pdf` contiene las láminas; para regenerarlas después de editar
-`docs/presentation.md`, ejecuta `python docs/build_presentation.py` con las
-dependencias de desarrollo instaladas.
+Las láminas están en `docs/presentation.html` y `docs/presentation.pdf` es lo que
+se entrega. Para regenerar el PDF después de editar el HTML:
+
+```bash
+chromium --headless --no-pdf-header-footer --print-to-pdf=docs/presentation.pdf docs/presentation.html
+```
 
 Las capturas reales contra el broker están en `docs/screenshots/`; su README
 explica qué muestra cada una.

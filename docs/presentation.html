@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Estación meteorológica con Kafka</title>
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  :root {
+    --ink: #1e2428;
+    --muted: #697277;
+    --line: #dcd8d0;
+    --paper: #fbfaf7;
+    --code: #f1eee8;
+    --temp: #c45c20;
+    --hum: #167eae;
+    --wind: #248b73;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--paper); }
+  body {
+    font-family: "Adwaita Sans", "Cantarell", sans-serif;
+    color: var(--ink);
+    counter-reset: slide;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .slide {
+    position: relative;
+    width: 1280px;
+    height: 720px;
+    padding: 52px 72px 64px;
+    overflow: hidden;
+    page-break-after: always;
+    break-after: page;
+    counter-increment: slide;
+    display: flex;
+    flex-direction: column;
+  }
+  .slide::after {
+    content: counter(slide);
+    position: absolute;
+    right: 72px;
+    bottom: 26px;
+    font-size: 15px;
+    color: var(--muted);
+  }
+  .slide::before {
+    content: "Cárcamo · Aguilar  —  Estación meteorológica IoT";
+    white-space: pre;
+    position: absolute;
+    left: 72px;
+    bottom: 26px;
+    font-size: 15px;
+    color: var(--muted);
+  }
+  .tag { font-size: 17px; color: var(--hum); font-weight: 600; margin-bottom: 6px; }
+  h1 { font-size: 40px; line-height: 1.15; font-weight: 700; margin-bottom: 26px; letter-spacing: -0.01em; }
+  h2 { font-size: 23px; line-height: 1.3; font-weight: 700; margin-bottom: 12px; }
+  p, li { font-size: 22px; line-height: 1.45; }
+  p + p { margin-top: 14px; }
+  ul { padding-left: 26px; }
+  li + li { margin-top: 10px; }
+  code, pre, .mono { font-family: "JetBrainsMono NFM", "JetBrains Mono", monospace; font-variant-ligatures: none; }
+  code { font-size: 0.86em; background: var(--code); padding: 1px 6px; border-radius: 4px; }
+  pre {
+    background: var(--code);
+    border-radius: 8px;
+    padding: 18px 22px;
+    font-size: 17px;
+    line-height: 1.5;
+    white-space: pre;
+  }
+  .small { font-size: 18px; color: var(--muted); }
+  .q {
+    border-left: 5px solid var(--temp);
+    padding: 4px 0 4px 18px;
+    font-size: 25px;
+    line-height: 1.3;
+    font-weight: 700;
+    margin-bottom: 22px;
+  }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; }
+  .cols h2 { border-bottom: 2px solid var(--line); padding-bottom: 6px; }
+  .shot { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+  .shot img { max-width: 100%; max-height: 100%; border: 1px solid var(--line); border-radius: 6px; }
+  .caption { font-size: 19px; line-height: 1.4; color: var(--muted); margin-bottom: 16px; max-width: 1060px; }
+
+  .cover { justify-content: center; padding-left: 110px; }
+  .cover::before { content: ""; }
+  .cover .stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 26px; display: flex; flex-direction: column; }
+  .cover .stripe span { flex: 1; }
+  .cover h1 { font-size: 64px; margin-bottom: 22px; }
+  .cover .lead { font-size: 25px; max-width: 900px; color: #3b4448; }
+  .cover .people { margin-top: 48px; font-size: 22px; line-height: 1.6; }
+  .cover .meta { margin-top: 18px; font-size: 18px; color: var(--muted); }
+
+  .flow { display: flex; align-items: stretch; gap: 0; margin: 6px 0 34px; }
+  .node { flex: 1; border: 2px solid var(--ink); border-radius: 10px; padding: 14px 16px; background: #fff; }
+  .node b { display: block; font-family: "JetBrainsMono NFM", monospace; font-size: 18px; margin-bottom: 6px; }
+  .node span { font-size: 17px; line-height: 1.35; color: #3b4448; }
+  .node.edge { border-style: dashed; border-color: var(--hum); background: #eef6fa; }
+  .arrow { width: 38px; display: flex; align-items: center; justify-content: center; font-size: 28px; color: var(--muted); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 21px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 17px; color: var(--muted); font-weight: 600; }
+
+  .bits { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; margin: 8px 0 4px; }
+  .bits div { text-align: center; font-family: "JetBrainsMono NFM", monospace; }
+  .bits .n { font-size: 12px; color: var(--muted); }
+  .bits .b { font-size: 22px; font-weight: 700; color: #fff; padding: 8px 0; border-radius: 3px; }
+  .t { background: var(--temp); }
+  .h { background: var(--hum); }
+  .w { background: var(--wind); }
+  .fields { display: grid; grid-template-columns: 14fr 7fr 3fr; gap: 3px; margin-bottom: 26px; }
+  .fields div { font-size: 17px; padding-top: 6px; border-top: 3px solid; }
+  .fields .ft { border-color: var(--temp); color: var(--temp); }
+  .fields .fh { border-color: var(--hum); color: var(--hum); }
+  .fields .fw { border-color: var(--wind); color: var(--wind); }
+  .ct { color: var(--temp); font-weight: 700; }
+  .ch { color: var(--hum); font-weight: 700; }
+  .cw { color: var(--wind); font-weight: 700; }
+
+  .pair { display: flex; flex-direction: column; gap: 12px; }
+  .pair img { border: 1px solid var(--line); border-radius: 6px; display: block; }
+  .side { flex: 1; display: grid; grid-template-columns: 1fr 330px; grid-template-rows: minmax(0, 1fr); gap: 40px; min-height: 0; }
+  .side img { height: 100%; width: 100%; object-fit: contain; object-position: left top; }
+  .side .caption { margin: 0; font-size: 20px; }
+  .side .caption + .caption { margin-top: 14px; }
+  .pair .label { font-size: 16px; color: var(--muted); margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<section class="slide cover">
+  <div class="stripe"><span class="t"></span><span class="h"></span><span class="w"></span></div>
+  <div class="tag">CC3067 Redes · Laboratorio de IoT</div>
+  <h1>Estación meteorológica<br>con Apache Kafka</h1>
+  <p class="lead">Simulamos un nodo con tres sensores, mandamos su telemetría a un broker Kafka en el Edge y la graficamos en vivo. Después metimos cada lectura en 3 bytes.</p>
+  <p class="people">Esteban Cárcamo · 23016<br>Felipe Aguilar · 23195</p>
+  <p class="meta">12 de noviembre de 2026 · github.com/ecarcamo/IoT-Estacion-Meteorologica</p>
+</section>
+
+<section class="slide">
+  <div class="tag">Panorama</div>
+  <h1>Cómo quedó armado</h1>
+  <div class="flow">
+    <div class="node"><b>WeatherSensor</b><span>genera temperatura, humedad y viento</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>producer.py</b><span>publica una lectura cada 15 a 30 s</span></div>
+    <div class="arrow">→</div>
+    <div class="node edge"><b>Broker Kafka</b><span>161.35.11.141:9092<br>topic <code>23016</code></span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>consumer.py</b><span>lee, decodifica y valida</span></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>matplotlib</b><span>gráfica que se actualiza en vivo</span></div>
+  </div>
+  <ul>
+    <li>Todo está en Python con <code>kafka-python</code>. Como topic usamos el carné de Esteban.</li>
+    <li>El productor hace de "dispositivo IoT"; el consumidor es lo que estaría detrás del Edge.</li>
+    <li>La contraseña SASL vive en un <code>.env</code> que no subimos al repositorio.</li>
+    <li>En el topic conviven mensajes JSON y de 3 bytes. El consumidor los distingue por el largo: si mide 3 bytes, es compacto.</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <div class="tag">3.1 · Simulación de un sensor</div>
+  <h1>Tres sensores con números aleatorios</h1>
+  <table>
+    <tr><th>Sensor</th><th>Cómo lo generamos</th><th>Rango y tipo</th></tr>
+    <tr><td class="ct">Temperatura</td><td>Normal con μ = 55 y σ = 15</td><td>0 a 110 °C, dos decimales</td></tr>
+    <tr><td class="ch">Humedad relativa</td><td>La misma normal, redondeada</td><td>0 a 100 %, entero</td></tr>
+    <tr><td class="cw">Dirección del viento</td><td>Uniforme entre las 8 opciones</td><td>N, NO, O, SO, S, SE, E, NE</td></tr>
+  </table>
+  <p style="margin-top:26px">La varianza quedaba a nuestro criterio y escogimos σ = 15 (varianza 225). Con eso casi todo cae entre 10 y 100 (μ ± 3σ), así que el recorte a los límites del sensor casi nunca entra en juego, y aun así la gráfica sube y baja lo suficiente para que se note.</p>
+  <p>Cada lectura sale como JSON:</p>
+  <pre style="margin-top:10px">{"temperatura": 56.32, "humedad": 51, "direccion_viento": "SO"}</pre>
+</section>
+
+<section class="slide">
+  <div class="tag">3.1 · Evidencia</div>
+  <h1>Lecturas generadas y pruebas</h1>
+  <p class="caption">Lecturas sacadas de <code>WeatherSensor</code>, cada una con su versión de 3 bytes a la derecha. Abajo corren las 20 pruebas de pytest que revisan rangos, codificación y decodificación.</p>
+  <div class="shot"><img src="screenshots/sensors-and-tests.png" alt="Lecturas generadas y pruebas"></div>
+</section>
+
+<section class="slide">
+  <div class="tag">3.1 · Preguntas</div>
+  <div class="q">¿A qué capa pertenece JSON/SOAP según el modelo OSI y por qué?</div>
+  <p>A la capa 6, presentación. JSON no abre conexiones ni mueve paquetes; lo único que define es cómo se escriben los datos (llaves, tipos, texto en UTF‑8) para que nuestro productor en Python y cualquier consumidor, en el lenguaje que sea, los lean igual. Esa traducción a un formato común es el trabajo de la capa de presentación. SOAP es más mixto: su XML es representación, pero como protocolo de mensajes sobre HTTP también se suele ubicar en aplicación (capa 7).</p>
+  <div class="q" style="margin-top:30px">¿Qué beneficios tiene utilizar un formato como JSON/SOAP?</div>
+  <p>Lo notamos al depurar: en la terminal se lee directo qué mandó el sensor. Casi cualquier lenguaje lo trae incluido y se le pueden agregar campos sin romper a quien ya lo consume. El precio es el tamaño: una lectura nuestra pesa 62 o 63 bytes en JSON, contra 3 en el formato compacto.</p>
+</section>
+
+<section class="slide">
+  <div class="tag">3.2 · Envío de datos al servidor Edge</div>
+  <h1>El productor</h1>
+  <p><code>producer.py</code> se conecta a <code>161.35.11.141:9092</code> con <code>SASL_PLAINTEXT</code> y <code>PLAIN</code>, y publica en el topic 23016. Entre una lectura y otra espera un tiempo al azar de 15 a 30 s, y sigue así hasta que alguien lo detiene con Ctrl+C.</p>
+  <pre style="margin:20px 0">producer = KafkaProducer(**settings.client_options(), acks="all")
+while args.count == 0 or sent &lt; args.count:
+    payload = encode_reading(sensor.read(), args.compact)
+    metadata = producer.send(topic, key=b"sensor1", value=payload).get(timeout=30)
+    time.sleep(random.uniform(15, 30))</pre>
+  <ul>
+    <li>Con <code>acks="all"</code> y el <code>.get()</code>, cada envío espera la confirmación del broker. Por eso podemos imprimir la partición y el offset de cada mensaje.</li>
+    <li>Todas las lecturas llevan la key <code>sensor1</code>, así que caen en la misma partición y no se desordenan.</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <div class="tag">3.2 · Evidencia</div>
+  <h1>El productor publicando en el broker</h1>
+  <p class="caption">Corrida del 10 de noviembre. Primero cinco lecturas en JSON (<code>python producer.py</code>) y luego cinco en 3 bytes (<code>--compact</code>). Por la hora de cada línea se ve que entre envíos pasan de 15 a 30 s, y al final de cada una está la partición y el offset que devolvió Kafka.</p>
+  <div class="shot"><img src="screenshots/live-producer-terminal.png" alt="Terminal del productor" style="width:100%"></div>
+</section>
+
+<section class="slide">
+  <div class="tag">3.3 · Consumir y desplegar los datos</div>
+  <h1>El consumidor y la gráfica</h1>
+  <p><code>consumer.py</code> se suscribe al topic 23016 con las mismas credenciales. Con cada mensaje que llega: lo decodifica (JSON o 3 bytes), revisa que los valores estén dentro de rango y lo agrega a la gráfica. Si algo viene mal, lo reporta en consola y lo salta.</p>
+  <p>La gráfica tiene tres paneles: temperatura y humedad contra la hora del mensaje, y cuántas veces ha salido cada dirección del viento. Se redibuja cada vez que entra un dato.</p>
+  <p>Un detalle práctico: si el programa se queda bloqueado esperando mensajes, la ventana de matplotlib se congela. Por eso usamos <code>poll()</code> con 100 ms de espera y <code>plt.pause()</code>, y la ventana sigue respondiendo entre lectura y lectura.</p>
+  <p>Con <code>auto_offset_reset="earliest"</code> también aparece lo que ya estaba en el topic, y <code>--replay</code> relee todo el historial sin mover los offsets del grupo.</p>
+</section>
+
+<section class="slide">
+  <div class="tag">3.3 · Evidencia</div>
+  <h1>Productor, consumidor y gráfica a la vez</h1>
+  <p class="caption">Todo corriendo contra el broker real. Arriba a la izquierda está el consumidor y abajo el productor; los offsets de uno y otro coinciden, y la gráfica de la derecha crece con cada lectura.</p>
+  <div class="shot"><img src="screenshots/live-desktop.png" alt="Escritorio con productor, consumidor y gráfica"></div>
+</section>
+
+<section class="slide">
+  <div class="tag">3.3 · Evidencia</div>
+  <h1>Gráfica con datos consumidos de Kafka</h1>
+  <div class="side">
+    <img src="screenshots/kafka-json.png" alt="Gráfica de lecturas JSON">
+    <div>
+      <p class="caption">Figura exportada por el consumidor con las lecturas JSON del topic 23016 (offsets 4 a 11 más lo que ya había).</p>
+      <p class="caption">Arriba la temperatura, en medio la humedad y abajo el conteo de direcciones del viento.</p>
+      <p class="caption">El tramo recto del inicio une unas lecturas de prueba de las 20:12 con la corrida de las 20:36, porque el eje X usa la hora real de cada mensaje.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="tag">3.3 · Preguntas</div>
+  <div class="q">¿Qué ventajas y desventajas tiene este acercamiento basado en Pub/Sub de Kafka?</div>
+  <div class="cols">
+    <div>
+      <h2>A favor</h2>
+      <ul>
+        <li>El sensor no sabe quién lo lee. Si mañana queremos un consumidor que mande alertas, se suscribe al topic y el productor ni se entera.</li>
+        <li>Kafka guarda los mensajes. Así pudimos reabrir la gráfica con <code>--replay</code> y ver lecturas de horas antes.</li>
+        <li>Si el consumidor se cae, al volver sigue desde su último offset.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>En contra</h2>
+      <ul>
+        <li>Alguien tiene que instalar y mantener el broker. Aquí nos lo dieron listo, pero en un proyecto real es trabajo aparte.</li>
+        <li>Para un sensor y una gráfica es bastante infraestructura; un socket directo haría lo mismo.</li>
+        <li>El orden solo se garantiza dentro de una partición, y sin entender grupos y offsets es fácil leer repetido o saltarse datos.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="tag">3.3 · Preguntas</div>
+  <div class="q">¿Para qué aplicaciones tiene sentido usar Kafka? ¿Para cuáles no?</div>
+  <div class="cols">
+    <div>
+      <h2>Sí tiene sentido</h2>
+      <ul>
+        <li>Muchos dispositivos mandando telemetría al mismo tiempo, como este caso pero con cientos de estaciones.</li>
+        <li>Logs de muchos servidores juntos en un solo lugar.</li>
+        <li>Eventos que varios sistemas tienen que procesar: pedidos, pagos, clics.</li>
+        <li>Análisis en streaming, o cuando conviene poder releer el historial.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Mejor no</h2>
+      <ul>
+        <li>Una app pequeña con poco tráfico.</li>
+        <li>Colas de tareas sencillas, donde RabbitMQ o Redis bastan.</li>
+        <li>Petición y respuesta inmediata, como una API normal.</li>
+        <li>Un sensor con batería y poca memoria hablando directo con Kafka. Ahí encaja MQTT o CoAP, con un gateway que pase los datos a Kafka.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="tag">3.4 · IoT en entornos con restricciones</div>
+  <h1>Una lectura en 24 bits</h1>
+  <p>La pista del enunciado: 2<sup>14</sup> = 16&nbsp;384. La temperatura máxima es 110.00, y si le quitamos el punto queda 11&nbsp;000, que es menor. O sea, la multiplicamos por 100, la guardamos como entero y no perdemos ningún decimal.</p>
+  <p class="small" style="margin-top:22px">Ejemplo: <span class="ct">56.32 °C → 5632</span>, <span class="ch">51 %</span>, <span class="cw">SO → 3</span></p>
+  <div class="bits">
+    <div class="n">23</div><div class="n">22</div><div class="n">21</div><div class="n">20</div><div class="n">19</div><div class="n">18</div><div class="n">17</div><div class="n">16</div><div class="n">15</div><div class="n">14</div><div class="n">13</div><div class="n">12</div><div class="n">11</div><div class="n">10</div><div class="n">9</div><div class="n">8</div><div class="n">7</div><div class="n">6</div><div class="n">5</div><div class="n">4</div><div class="n">3</div><div class="n">2</div><div class="n">1</div><div class="n">0</div>
+    <div class="b t">0</div><div class="b t">1</div><div class="b t">0</div><div class="b t">1</div><div class="b t">1</div><div class="b t">0</div><div class="b t">0</div><div class="b t">0</div><div class="b t">0</div><div class="b t">0</div><div class="b t">0</div><div class="b t">0</div><div class="b t">0</div><div class="b t">0</div>
+    <div class="b h">0</div><div class="b h">1</div><div class="b h">1</div><div class="b h">0</div><div class="b h">0</div><div class="b h">1</div><div class="b h">1</div>
+    <div class="b w">0</div><div class="b w">1</div><div class="b w">1</div>
+  </div>
+  <div class="fields">
+    <div class="ft">temperatura × 100 · 14 bits (0 a 11&nbsp;000)</div>
+    <div class="fh">humedad · 7 bits</div>
+    <div class="fw">viento · 3</div>
+  </div>
+  <pre>(5632 &lt;&lt; 10) | (51 &lt;&lt; 3) | 3  =  0x58019B  →  bytes 58 01 9B</pre>
+</section>
+
+<section class="slide">
+  <div class="tag">3.4 · IoT en entornos con restricciones</div>
+  <h1>Encode y decode</h1>
+  <pre>def encode(data: dict) -&gt; bytes:
+    temperature = round(data["temperatura"] * TEMPERATURE_SCALE)
+    humidity = data["humedad"]
+    wind = WIND_DIRECTIONS.index(data["direccion_viento"])
+    packed = (temperature &lt;&lt; TEMPERATURE_SHIFT) | (humidity &lt;&lt; HUMIDITY_SHIFT) | wind
+    return packed.to_bytes(PAYLOAD_SIZE, "big")
+
+def decode(payload: bytes) -&gt; dict:
+    packed = int.from_bytes(payload, "big")
+    return {
+        "temperatura": ((packed &gt;&gt; TEMPERATURE_SHIFT) &amp; TEMPERATURE_MASK) / TEMPERATURE_SCALE,
+        "humedad": (packed &gt;&gt; HUMIDITY_SHIFT) &amp; HUMIDITY_MASK,
+        "direccion_viento": WIND_DIRECTIONS[packed &amp; WIND_MASK],
+    }</pre>
+  <p style="margin-top:20px">Son los mismos corrimientos de la lámina anterior, de ida y de vuelta. Le quitamos aquí las validaciones para que quepa: en el código, <code>encode</code> rechaza valores fuera de rango, porque una humedad de 200 no cabe en 7 bits y se metería en los bits de la temperatura.</p>
+</section>
+
+<section class="slide">
+  <div class="tag">3.4 · Evidencia</div>
+  <h1>Lo que sale es lo que llega</h1>
+  <p class="caption">Los offsets 25 a 29 salieron del productor en 3 bytes y el consumidor los decodificó con los mismos valores. Por ejemplo, 40.54 °C, 57 % y NE viajó como <code>3f 59 cf</code>.</p>
+  <div class="pair">
+    <div><div class="label">Productor</div><img src="screenshots/live-producer-terminal.png" alt="Productor enviando 3 bytes" style="width:760px"></div>
+    <div><div class="label">Consumidor, offsets 20 a 29</div><img src="screenshots/live-consumer-offsets-20-29.png" alt="Consumidor decodificando" style="width:582px"></div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="tag">3.4 · Evidencia</div>
+  <h1>La gráfica con mensajes de 3 bytes</h1>
+  <div class="side">
+    <img src="screenshots/kafka-compact.png" alt="Gráfica con mensajes de 3 bytes">
+    <div>
+      <p class="caption">Las lecturas compactas (offsets 12 a 19) se grafican junto al historial JSON, en el mismo topic y con el mismo consumidor.</p>
+      <p class="caption">El offset 12, por ejemplo, llegó como <code>48 8E D7</code> y se dibujó como 46.43 °C, 90 % y NE.</p>
+      <p class="caption">Desde la gráfica no se nota qué formato traía cada punto, que era justo la idea.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="tag">3.4 · Preguntas</div>
+  <div class="q">¿Qué complejidades introduce el tener un payload restringido?</div>
+  <p>La principal es que el mensaje deja de explicarse solo. <code>48 8E D7</code> no dice nada si no se sabe qué bits son de qué campo. Productor y consumidor tienen que usar exactamente el mismo esquema, y si uno cambia (otro orden, otro rango) hay que actualizar los dos a la vez.</p>
+  <p>Tampoco queda espacio para nada más: ni id del sensor, ni timestamp, ni versión del formato, ni checksum. Si un bit se voltea en el camino, llega otro valor y nadie se da cuenta.</p>
+  <p>Y hay que validar antes de codificar, porque un valor fuera de rango no da error al empaquetarse: se desborda hacia el campo de al lado.</p>
+  <div class="q" style="margin-top:30px">¿Cómo podemos hacer que el valor de temperatura quepa en 14 bits?</div>
+  <p>Guardándola como entero en centésimas (punto fijo). 110.00 × 100 = 11&nbsp;000, y en 14 bits caben hasta 16&nbsp;383, así que entra todo el rango con sus dos decimales. Al recibir se divide entre 100. No hace falta un float de 4 bytes porque ya conocemos el rango y la precisión.</p>
+</section>
+
+<section class="slide">
+  <div class="tag">3.4 · Preguntas</div>
+  <div class="q">¿Qué sucedería si la humedad también fuera float con un decimal? ¿Qué decisiones tendríamos que tomar?</div>
+  <p>La humedad pasaría de 101 valores posibles a 1&nbsp;001 (de 0.0 a 100.0, o sea 0 a 1000 en décimas), y eso pide 10 bits. Sumando: 14 + 10 + 3 = 27 bits, y solo tenemos 24. Algo hay que sacrificar:</p>
+  <table style="margin-top:16px">
+    <tr><th>Opción</th><th>Bits</th><th>Qué perdemos</th></tr>
+    <tr><td>Temperatura con un decimal (0 a 1100)</td><td class="mono">11 + 10 + 3 = 24</td><td>la centésima de grado</td></tr>
+    <tr><td>Dejar la humedad entera</td><td class="mono">14 + 7 + 3 = 24</td><td>el decimal nuevo de humedad</td></tr>
+    <tr><td>Alternar mensajes de temperatura y de humedad</td><td class="mono">3 bytes cada uno</td><td>la mitad de lecturas por variable</td></tr>
+    <tr><td>Pedir un payload de 4 bytes</td><td class="mono">32</td><td>ya no cumple la restricción</td></tr>
+  </table>
+  <p style="margin-top:20px">Nosotros escogeríamos la primera. Para una estación meteorológica, un decimal de temperatura sobra; la segunda cifra decimal es más ruido del sensor que información.</p>
+</section>
+
+<section class="slide">
+  <div class="tag">3.4 · Preguntas</div>
+  <div class="q">¿Qué parámetros o herramientas de Kafka podrían ayudarnos si las restricciones fueran aún más fuertes?</div>
+  <ul>
+    <li><code>compression.type</code> (gzip, snappy, lz4, zstd) junto con <code>batch.size</code> y <code>linger.ms</code>: en lugar de mandar cada lectura sola, se juntan varias y se comprimen. Se gana espacio y se pierde inmediatez.</li>
+    <li>La key. Hoy <code>sensor1</code> pesa 7 bytes, más del doble que el payload. Una key de un byte, o ninguna, ahorra eso; sin key se pierde el orden garantizado por sensor.</li>
+    <li><code>max.request.size</code> y <code>message.max.bytes</code> para ponerle techo al tamaño de los mensajes.</li>
+    <li>Avro o Protobuf con Schema Registry para versionar el formato compacto sin romper consumidores.</li>
+  </ul>
+  <p style="margin-top:22px">Siendo honestos, el protocolo de Kafka agrega decenas de bytes de encabezado a cada mensaje. En un enlace LoRa real el sensor no hablaría Kafka: mandaría sus 3 bytes por radio a un gateway, y ese gateway (o Kafka Connect) los publicaría en el broker.</p>
+</section>
+
+<section class="slide">
+  <div class="tag">Cierre</div>
+  <h1>Lo que nos llevamos</h1>
+  <ul>
+    <li>Prueba contra el broker real el 10 de noviembre: 16 mensajes (8 JSON y 8 de 3 bytes, offsets 4 a 19), y todos llegaron con los mismos valores que se enviaron.</li>
+    <li>Pasamos de unos 63 bytes a 3 (95 % menos) por lectura. Codificar fue lo fácil; lo que hay que cuidar es que los dos lados usen el mismo esquema.</li>
+    <li>En la misma corrida pasamos de JSON a 3 bytes y el consumidor leyó ambos formatos del mismo topic. Ahí se ve bien la utilidad de Pub/Sub.</li>
+    <li>Para un solo sensor Kafka es mucho. Empieza a valer la pena con muchos dispositivos o con varios sistemas leyendo los mismos datos.</li>
+  </ul>
+  <p class="small" style="margin-top:auto">Referencias: documentación de Apache Kafka (kafka.apache.org/documentation) · kafka-python (kafka-python.readthedocs.io) · enunciado del laboratorio, CC3067.</p>
+</section>
+
+</body>
+</html>
